@@ -5,13 +5,14 @@ if (/access_token/i.test(window.location.hash.substring(1))) {
 }
 
 //Foursquare access
-var accessToken = window.localStorage.getItem('access_token');
+var accessToken = window.localStorage.getItem('access_token'),
+    group;
 
 if (!accessToken) {
     document.querySelector('body').innerHTML =
     '<a href="https://foursquare.com/oauth2/authenticate?' +
     'client_id=PZHASJ4VA4PDMC1TBJIORWHMTM44WORMLGZ20SDK5LUAPOCL&' +
-    'response_type=token&redirect_uri=http://localhost:8000/"' +
+    'response_type=token&redirect_uri=' + window.location.href +
     'target="_blank">Login to Foursquare</a>';
 }
 
@@ -45,10 +46,28 @@ map.on('geosearch_foundlocations',function(data){
           venuePhotos: 1,
           oauth_token: accessToken
         },
+        success: function(data){
+            parseFourSquare(data,true);
+        }
+    });
+});
+
+map.on('moveend',function(data){
+    var latlng = this._initialCenter;
+    $.ajax('https://api.foursquare.com/v2/venues/explore',
+    {
+        data: {
+          v: '20130801',
+          ll: latlng.lat + ',' + latlng.lng,
+          radius: 25000,
+          venuePhotos: 1,
+          oauth_token: accessToken
+        },
         success: parseFourSquare
     });
 });
-function parseFourSquare(data){
+
+function parseFourSquare(data, resetView){
 
     var numResults = data.numResults;
     var results = data.response.groups[0];
@@ -65,9 +84,7 @@ function parseFourSquare(data){
             + '"/></a>';
         }
         if (venue.hours) {
-            console.log(venue.hours)
             hours = 'Hours: <span class="' + (venue.hours.isOpen ? 'green' : 'red') + '">' + venue.hours.status+'</span>';
-            console.log(hours);
         }
 
         marker.bindPopup(
@@ -79,8 +96,17 @@ function parseFourSquare(data){
             );
         return marker;
     });
-    var group = new L.featureGroup(markers).addTo(map);
-    map.fitBounds(group.getBounds());
+
+    if (group) {
+        //Delete previous markers
+        map.removeLayer(group);
+    }
+
+    group = new L.featureGroup(markers).addTo(map);
+
+    if (resetView===true) {
+        map.fitBounds(group.getBounds());
+    }
 }
 
 
